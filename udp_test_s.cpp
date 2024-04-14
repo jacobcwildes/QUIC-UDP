@@ -43,8 +43,11 @@ int main() {
 	    perror("bind failed"); 
 	    exit(EXIT_FAILURE); 
 	} 
-	   
-	parsed_data = receive_data(sockfd, (struct sockaddr *) &servaddr);
+	
+	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+	
+	
+	parsed_data = quic.receive_data();
 
 	close(sockfd); 
 	return 0; 

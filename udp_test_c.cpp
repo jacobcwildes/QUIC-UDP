@@ -36,6 +36,9 @@ int main() {
 	servaddr.sin_port = htons(DEFAULT_PORT); 
 	servaddr.sin_addr.s_addr = INADDR_ANY;
 	
+	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+	
+	
 	//THIS IS HOW WE WILL SEND
 	//first assemble frame struct
 	sprintf(data, "bruh");
@@ -47,7 +50,7 @@ int main() {
 	sending.length = 0;
 	sending.data = data;
 	
-	send(sending, sockfd, (const struct sockaddr *) &servaddr, sizeof(servaddr));
+	quic.send(sending);
 
 	close(sockfd); 
 	return 0; 
