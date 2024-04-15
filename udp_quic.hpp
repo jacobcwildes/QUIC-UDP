@@ -16,6 +16,9 @@ class SimpleQuic {
 		int socketfd;
 		struct sockaddr *address;
 		int addr_size;
+		int n;
+		socklen_t len;
+		
 		
 		SimpleQuic(int max_header, int max_data, int max_delay, int socketfd, struct sockaddr *address, int addr_size) {
 			this->max_header = max_header;
@@ -26,85 +29,84 @@ class SimpleQuic {
 			this->addr_size = addr_size;
 		}
 		
-		void data_create(char *buffer, struct dataframe input){
+		void data_create(char *buffer, struct dataframe *input){
 
 			char beforeChecksum[max_header];
 			
-			sprintf(beforeChecksum, "%d,%d,%d,%d,%d", input.seq, input.ack, input.syn, input.fin, input.length);
+			sprintf(beforeChecksum, "%d,%d,%d,%d,%d", input->seq, input->ack, input->syn, input->fin, input->length);
 			
 			//calc checksum
-			uint16_t checksum = input.seq + input.ack + input.syn + input.fin + input.length + (long int)*input.data;
+			int data_sum = 0;
+			for (long int i = 0; i < (long int) strlen(input->data); i++) data_sum += (int) input->data[i];
+			uint16_t checksum = input->seq + input->ack + input->syn + input->fin + input->length + data_sum;
 			
-			sprintf(buffer, "%s,%d,%s", beforeChecksum, checksum, input.data);
+			sprintf(buffer, "%s,%d,%s", beforeChecksum, checksum, input->data);
 			
 		}
-
-		void send(struct dataframe input){
+		
+		void send(struct dataframe *input){
 			char frame[max_header];
 			data_create(frame, input);
 			std::cout << frame << std::endl;
 			sendto(socketfd, (char *)frame, strlen(frame), 
-				MSG_CONFIRM, address,  
-					addr_size); 
+						MSG_CONFIRM, address,  
+						addr_size); 
 		}
 
-		dataframe data_parse(char *buf){
-			struct dataframe parsed;
+		void data_parse(char *buf, struct dataframe *parsed){
 			size_t pos = 0;
 			std::string buffer = buf;
 			std::string delim = ",";
 			
 			pos = buffer.find(',');
-			parsed.seq = (uint32_t) stoi(buffer.substr(0,pos));
+			parsed->seq = (uint32_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
 			
 			pos = buffer.find(',');
-			parsed.ack = (uint32_t) stoi(buffer.substr(0,pos));
+			parsed->ack = (uint32_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
 			
 			pos = buffer.find(',');
-			parsed.syn = (uint8_t) stoi(buffer.substr(0,pos));
+			parsed->syn = (uint8_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
 			
 			pos = buffer.find(',');
-			parsed.fin = (uint8_t) stoi(buffer.substr(0,pos));
+			parsed->fin = (uint8_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
 			
 			pos = buffer.find(',');
-			parsed.length = (uint16_t) stoi(buffer.substr(0,pos));
+			parsed->length = (uint16_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
 			
 			pos = buffer.find(',');
-			parsed.checksum = (uint16_t) stoi(buffer.substr(0,pos));
+			parsed->checksum = (uint16_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
 			
 			pos = buffer.find(',');
-			parsed.data = (char *) buffer.substr(0,pos).c_str();
+			parsed->data = (char *) buffer.substr(0,pos).c_str();
 			buffer.erase(0, pos + delim.length());
-			
-			return parsed;
 		}
 
-		int checksum_valid(struct dataframe input){
-			if ((input.seq + input.ack + input.syn + input.fin + input.length + (long int)*input.data) == input.checksum) return 1;
+		int checksum_valid(struct dataframe *input){
+			std::cout << input->data << std::endl;
+			int data_sum = 0; 
+			for (long int i = 0; i < (long int) strlen(input->data); i++) data_sum += (int) input->data[i];
+			uint16_t checksum = input->seq + input->ack + input->syn + input->fin + input->length + data_sum;
+			if (checksum == input->checksum) return 1;
 			return 0;
 		}
 
-		dataframe receive_data(){
+		void receive_data(struct dataframe *parsed_data){
 			char recv[max_data + max_header];
-			struct dataframe parsed_data;
-			socklen_t len;
 			int valid;
-			uint64_t n = recvfrom(socketfd, (char *)recv, max_header+max_data,  
+			n = recvfrom(socketfd, (char *)recv, max_header+max_data,  
 					MSG_WAITALL, address, 
-					&len); 
+					&len);	
 			recv[n] = '\0'; 
 			std::cout << recv << std::endl;
-			parsed_data = data_parse(recv);
+			data_parse(recv, parsed_data);
 			valid = checksum_valid(parsed_data);
-			std::cout << "Valid Checksum: " << valid << std::endl;
-			
-			return parsed_data;
+			std::cout << "Valid?: " << valid << std::endl;
 		}
 };
 

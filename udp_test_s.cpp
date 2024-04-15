@@ -19,9 +19,17 @@
 // Driver code 
 int main() { 
 	int sockfd; 
-
-	struct dataframe parsed_data;
-	struct sockaddr_in servaddr; 
+	char data[MAXDATA];
+	struct sockaddr_in servaddr, cliaddr; 
+	struct dataframe zero, *parsed_data, *sending;
+	zero.seq = 0;
+	zero.ack = 1;
+	zero.syn = 0;
+	zero.fin = 0;
+	zero.length = 0;
+	zero.data = data;
+	parsed_data = &zero;
+	sending = &zero;
 
 	// Creating socket file descriptor 
 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -30,7 +38,8 @@ int main() {
 	}  
 	   
 	memset(&servaddr, 0, sizeof(servaddr)); 
-	   
+	memset(&cliaddr, 0, sizeof(cliaddr)); 
+	
 	// Filling server information 
 	servaddr.sin_family = AF_INET; 
 	servaddr.sin_port = htons(DEFAULT_PORT); 
@@ -44,10 +53,26 @@ int main() {
 	    exit(EXIT_FAILURE); 
 	} 
 	
-	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+	/* -- Now make quic object and begin talking -- */
 	
+	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &cliaddr, sizeof(cliaddr));
 	
-	parsed_data = quic.receive_data();
+	while (1) {
+		std::cout << "Waiting For Data!" << std::endl;
+		quic.receive_data(parsed_data);
+		
+		sprintf(data, "bruh");
+		sending->seq = 0;
+		sending->ack = 1;
+		sending->syn = 0;
+		sending->fin = 0;
+		sending->length = 0;
+		sending->data = parsed_data->data;
+		
+		std::cout << "Received: " << parsed_data->data << std::endl;
+		quic.send(sending);
+	}
+	
 
 	close(sockfd); 
 	return 0; 

@@ -22,6 +22,15 @@ int main() {
 	
 	char data[MAXDATA];
 	struct sockaddr_in servaddr; 
+	struct dataframe zero, *parsed_data, *sending;
+	zero.seq = 0;
+	zero.ack = 1;
+	zero.syn = 0;
+	zero.fin = 0;
+	zero.length = 0;
+	zero.data = data;
+	parsed_data = &zero;
+	sending = &zero;
 	   
 	// Creating socket file descriptor 
 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -30,6 +39,7 @@ int main() {
 	} 
 	
 	memset(&servaddr, 0, sizeof(servaddr)); 
+	
 	   
 	// Filling server information 
 	servaddr.sin_family = AF_INET; 
@@ -38,19 +48,22 @@ int main() {
 	
 	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
 	
-	
+	std::cout << "0" << std::endl;
 	//THIS IS HOW WE WILL SEND
 	//first assemble frame struct
 	sprintf(data, "bruh");
-	struct dataframe sending;
-	sending.seq = 0;
-	sending.ack = 1;
-	sending.syn = 0;
-	sending.fin = 0;
-	sending.length = 0;
-	sending.data = data;
+	sending->seq = 0;
+	sending->ack = 1;
+	sending->syn = 0;
+	sending->fin = 0;
+	sending->length = 0;
+	sending->data = data;
 	
+	std::cout << "1" << std::endl;
 	quic.send(sending);
+	std::cout << "2" << std::endl;
+	quic.receive_data(parsed_data);
+	std::cout << "3" << std::endl;
 
 	close(sockfd); 
 	return 0; 
