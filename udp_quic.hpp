@@ -41,21 +41,20 @@ class SimpleQuic {
 			
 			//calc checksum
 			uint16_t data_sum = 0;
-			for (int i = 0; i < max_data; i++) data_sum += input->pixels[i];
+			for (int i = 0; i < input->length; i++) data_sum += input->pixels[i];
 			uint16_t checksum = input->seq + input->ack + input->syn + input->fin + input->length + data_sum;
 			
 			sprintf(data, "%s,%d,%s", beforeChecksum, checksum, input->pixels);
-			std::cout << "Data Printout: " << input->pixels << std::endl;
 			
 		}
 		
 		void send(struct dataframe *input){
+			std::cout << "--------------------" << std::endl;
 			data_create(input);
 			std::cout << "Sending: " << data << std::endl;
 			sendto(socketfd, data, strlen(data), 
 						MSG_CONFIRM, address,  
 						addr_size); 
-			std::cout << "Sent!" << std::endl;
 						
 		}
 
@@ -96,7 +95,7 @@ class SimpleQuic {
 
 		int checksum_valid(struct dataframe *input){ //this is tested and working
 			uint16_t data_sum = 0; 
-			for (int i = 0; i < max_data; i++) data_sum += input->pixels[i];
+			for (int i = 0; i < input->length; i++) data_sum += input->pixels[i];
 			uint16_t checksum = input->seq + input->ack + input->syn + input->fin + input->length + data_sum;
 
 			if (checksum == input->checksum) return 1;
@@ -105,7 +104,6 @@ class SimpleQuic {
 
 		int receive_data(struct dataframe *parsed_data){
 			int valid;
-			std::cout << "Receiving! " << std::endl;
 			n = recvfrom(socketfd, data, max_header+max_data,  
 					MSG_WAITALL, address, 
 					&len);	

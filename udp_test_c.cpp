@@ -7,6 +7,9 @@
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
+#include <cstdlib>
+#include <iostream>
+#include <time.h>
 #include "udp_quic.hpp"
    
 #define MAXLINE 1000
@@ -21,16 +24,13 @@
 int main() { 
 	int sockfd; 
 	int valid;
+	uint32_t current_seq = 0;
+	uint32_t current_ack = 0;
 	struct sockaddr_in servaddr; 
-	struct dataframe zero, *parsed_data, *sending;
+	struct dataframe *parsed_data, *sending;
 	
-	zero.seq = 0;
-	zero.ack = 1;
-	zero.syn = 0;
-	zero.fin = 0;
-	zero.length = 0;
-	parsed_data = &zero;
-	sending = &zero;
+	sending = (dataframe*) malloc(sizeof(dataframe));
+	parsed_data = (dataframe*) malloc(sizeof(dataframe));
 	
 	sending->seq = 0;
 	sending->ack = 0;
@@ -48,7 +48,7 @@ int main() {
 	parsed_data->checksum = 0;
 	parsed_data->pixels = (char*) calloc(MAXDATA,sizeof(char));
 	
-	   
+	std::srand(time(0));
 	// Creating socket file descriptor 
 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
 		perror("socket creation failed"); 
@@ -66,34 +66,123 @@ int main() {
 	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
 	
 	//Wake up call
-	sending->seq = 0;
-	sending->ack = 0;
-	sending->syn = 0;
-	sending->fin = 0;
-	sending->length = 0;
 	quic.send(sending);
 	usleep(1e6);
 	
-	
-	
-	
-	
-	while(1) {
-		std::cout << "------------------" << std::endl;
+	//Three way handshake
+	while(1){
+		//1
+		sending->seq = (uint32_t) std::rand();
+		sending->ack = 0;
+		sending->syn = 1;
+		sending->fin = 0;
+		sending->length = 0;
+		quic.send(sending);
+		
+		//2
+		valid = quic.receive_data(parsed_data);
+		if (valid == 0){
+			std::cout << "Data corrupt, send again" << std::endl;
+			continue;
+		}
+		else if (parsed_data->ack != sending->seq + 1){
+			std::cout << "Rands not syncing" << std::endl;
+			continue;
+		}
+		
+		//3
 		sending->seq = 0;
 		sending->ack = 1;
 		sending->syn = 0;
 		sending->fin = 0;
-		sending->length = MAXDATA;
-		for (int i = 0; i < MAXDATA; i++) sending->pixels[i] = 5;
+		sending->length = 0;
 		quic.send(sending);
+		
+		break;
+	}
+	
+	std::cout << std::endl << std::endl << std::endl << "Finished Handshake! Let's begin!" << std::endl;
+	usleep(1e6);
+	
+	
+	while(1) {
+		
+		memset(sending->pixels, 0, MAXDATA*sizeof(char));
+		std::cout << "What video do you want to watch?: ";
+		std::scanf("%s", sending->pixels);
+		
+		sending->seq = current_seq;
+		sending->ack = 0;
+		sending->syn = 0;
+		sending->fin = 0;
+		sending->length = strlen(sending->pixels);
+		quic.send(sending);
+		
+		
 		valid = quic.receive_data(parsed_data);
 		if (valid == 0){
 			std::cout << "Data corrupt, send again" << std::endl;
 		}
-		//usleep(5e6);
+		current_seq += sending->length;
+		
+		if (!(strcmp(sending->pixels, "Dyllon"))){
+			for (int i = 97; i <= 122; i++) {
+				valid = quic.receive_data(parsed_data);
+				if (valid == 0){
+					std::cout << "Data corrupt, send again" << std::endl;
+				}
+				
+				std::cout << "Movie Data: " << (int) parsed_data->pixels[0] << std::endl;
+				memset(sending->pixels, 0, MAXDATA*sizeof(char));
+				sending->seq = 0;
+				sending->ack = parsed_data->seq + parsed_data->length;
+				sending->syn = 0;
+				sending->fin = 0;
+				sending->length = 1;
+				sprintf(sending->pixels, "0");
+				quic.send(sending);
+			}
+		}
+		if (!(strcmp(sending->pixels, "Finish"))){
+			break;
+		}
+		usleep(5e6);
 	}
 	
+	std::cout << "Finishing up!" << std::endl;
+	//Finish
+	while(1){
+		memset(sending->pixels, 0, MAXDATA*sizeof(char));
+		//1
+		uint32_t random = (uint32_t) std::rand();
+		sending->seq = random;
+		sending->ack = random;
+		sending->syn = 0;
+		sending->fin = 1;
+		sending->length = 0;
+		quic.send(sending);
+		
+		//2
+		valid = quic.receive_data(parsed_data);
+		if (valid == 0){
+			std::cout << "Data corrupt, send again" << std::endl;
+			//continue;
+		}
+		else if (!(parsed_data->seq == sending->seq && parsed_data->ack == sending->ack + 1)){
+			std::cout << "Rands not syncing" << std::endl;
+			continue;
+		}
+		
+		//3
+		sending->seq = 0;
+		sending->ack = parsed_data->ack;
+		sending->syn = 0;
+		sending->fin = 0;
+		sending->length = 0;
+		quic.send(sending);
+		
+		break;
+	}
 
 	close(sockfd); 
 	return 0; 
