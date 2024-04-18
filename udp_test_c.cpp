@@ -9,28 +9,45 @@
 #include <netinet/in.h> 
 #include "udp_quic.hpp"
    
-#define MAXLINE 10000
-#define MAXHEADER 100000
-#define MAXDATA 10000
+#define MAXLINE 1000
+#define MAXHEADER 200
+#define MAXDATA 50000
 #define MAXDELAY 1000
 #define DEFAULT_PORT	8080
 #define DEFAULT_HOSTNAME	"localhost"
 
+
 // Driver code 
 int main() { 
 	int sockfd; 
-	
-	char data[MAXDATA];
+	int valid;
 	struct sockaddr_in servaddr; 
 	struct dataframe zero, *parsed_data, *sending;
+	
 	zero.seq = 0;
 	zero.ack = 1;
 	zero.syn = 0;
 	zero.fin = 0;
 	zero.length = 0;
-	zero.data = data;
 	parsed_data = &zero;
 	sending = &zero;
+	
+	sending->seq = 0;
+	sending->ack = 0;
+	sending->syn = 0;
+	sending->fin = 0;
+	sending->length = 0;
+	sending->checksum = 0;
+	sending->pixels = (char*) calloc(MAXDATA,sizeof(char));
+	
+	parsed_data->seq = 0;
+	parsed_data->ack = 0;
+	parsed_data->syn = 0;
+	parsed_data->fin = 0;
+	parsed_data->length = 0;
+	parsed_data->checksum = 0;
+	parsed_data->pixels = (char*) calloc(MAXDATA,sizeof(char));
+	
 	   
 	// Creating socket file descriptor 
 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -48,22 +65,35 @@ int main() {
 	
 	SimpleQuic quic(MAXHEADER, MAXDATA, MAXDELAY, sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
 	
-	std::cout << "0" << std::endl;
-	//THIS IS HOW WE WILL SEND
-	//first assemble frame struct
-	sprintf(data, "bruh");
+	//Wake up call
 	sending->seq = 0;
-	sending->ack = 1;
+	sending->ack = 0;
 	sending->syn = 0;
 	sending->fin = 0;
 	sending->length = 0;
-	sending->data = data;
-	
-	std::cout << "1" << std::endl;
 	quic.send(sending);
-	std::cout << "2" << std::endl;
-	quic.receive_data(parsed_data);
-	std::cout << "3" << std::endl;
+	usleep(1e6);
+	
+	
+	
+	
+	
+	while(1) {
+		std::cout << "------------------" << std::endl;
+		sending->seq = 0;
+		sending->ack = 1;
+		sending->syn = 0;
+		sending->fin = 0;
+		sending->length = MAXDATA;
+		for (int i = 0; i < MAXDATA; i++) sending->pixels[i] = 5;
+		quic.send(sending);
+		valid = quic.receive_data(parsed_data);
+		if (valid == 0){
+			std::cout << "Data corrupt, send again" << std::endl;
+		}
+		//usleep(5e6);
+	}
+	
 
 	close(sockfd); 
 	return 0; 
