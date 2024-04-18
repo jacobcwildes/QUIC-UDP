@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <time.h>
+#include <opencv2/opencv.hpp>
 #include "udp_quic.hpp"
    
 #define MAXLINE 1000
@@ -28,6 +29,9 @@ int main() {
 	uint32_t current_ack = 0;
 	struct sockaddr_in servaddr; 
 	struct dataframe *parsed_data, *sending;
+	cv::Mat image;
+	cv::namedWindow("Video Stream");
+	cv::resizeWindow("Image", 128, 128);
 	
 	sending = (dataframe*) malloc(sizeof(dataframe));
 	parsed_data = (dataframe*) malloc(sizeof(dataframe));
@@ -125,6 +129,7 @@ int main() {
 		}
 		current_seq += sending->length;
 		
+		
 		if (!(strcmp(sending->pixels, "Dyllon"))){
 			for (int i = 97; i <= 122; i++) {
 				valid = quic.receive_data(parsed_data);
@@ -133,6 +138,11 @@ int main() {
 				}
 				
 				std::cout << "Movie Data: " << (int) parsed_data->pixels[0] << std::endl;
+				
+				image = cv::RGBImage(parsed_data->pixels, CV_8U);
+				cv::imshow("Dyllon", image);
+				cv::waitkey(10);
+				
 				memset(sending->pixels, 0, MAXDATA*sizeof(char));
 				sending->seq = 0;
 				sending->ack = parsed_data->seq + parsed_data->length;

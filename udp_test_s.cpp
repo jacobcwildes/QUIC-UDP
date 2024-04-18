@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <time.h>
+#include <opencv2/opencv.hpp>
 #include "udp_quic.hpp"
    
 #define MAXLINE 10000
@@ -26,8 +27,10 @@ int main() {
 	int valid;
 	uint32_t current_ack = 0;
 	uint32_t current_seq = 0;
+	cv::Mat image;
 	struct sockaddr_in servaddr, cliaddr; 
 	struct dataframe *parsed_data, *sending;
+	
 	
 	sending = (dataframe*) malloc(sizeof(dataframe));
 	parsed_data = (dataframe*) malloc(sizeof(dataframe));
@@ -129,10 +132,31 @@ int main() {
 		quic.send(sending);
 		
 		if (!(strcmp(parsed_data->pixels, "Dyllon"))){
+			
+			cv::VideoCapture cap("Dyllon.mp4");
+			if ( !cap.isOpened() )  // isOpened() returns true if capturing has been initialized.
+			{
+				std::cout << "Cannot open the video file. \n";
+				return -1;
+			}
+			
+			for (int i = 0; i < 256; i++){
+				if (!cap.read(image)) // if not success, break loop
+				// read() decodes and captures the next frame.
+				{
+					cout<<"\n Cannot read the video file. \n";
+					break;
+				}
+				cv::resize(image, image, (128,128));
+				//Do rest later heheh
+				
+			}
+		
+		
 			//Do Dyllon Video
 			for (int i = 97; i <= 122; i++){
-				memset(sending->pixels, 0, MAXDATA*sizeof(char));
-				sending->pixels[0] = i;
+				memset(sending->pixels, (i-97)*(250/(122-97)), 128*128*3*sizeof(char));
+				//sending->pixels[0] = i;
 				sending->seq = current_seq;
 				sending->ack = 0;
 				sending->syn = 0;
