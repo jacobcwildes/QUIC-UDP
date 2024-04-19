@@ -20,6 +20,7 @@
 #define DEFAULT_PORT	8080
 #define DEFAULT_HOSTNAME	"localhost"
 
+using namespace cv;
 
 // Driver code 
 int main() { 
@@ -29,9 +30,6 @@ int main() {
 	uint32_t current_ack = 0;
 	struct sockaddr_in servaddr; 
 	struct dataframe *parsed_data, *sending;
-	cv::Mat image;
-	cv::namedWindow("Video Stream");
-	cv::resizeWindow("Image", 128, 128);
 	
 	sending = (dataframe*) malloc(sizeof(dataframe));
 	parsed_data = (dataframe*) malloc(sizeof(dataframe));
@@ -130,18 +128,35 @@ int main() {
 		current_seq += sending->length;
 		
 		
-		if (!(strcmp(sending->pixels, "Dyllon"))){
-			for (int i = 97; i <= 122; i++) {
+		if ((strcmp(sending->pixels, "Dyllon"))==0 || (strcmp(sending->pixels, "Jacob"))==0){
+			while(1) {
+				memset(parsed_data->pixels, 0, MAXDATA*sizeof(char));
 				valid = quic.receive_data(parsed_data);
 				if (valid == 0){
 					std::cout << "Data corrupt, send again" << std::endl;
 				}
 				
-				std::cout << "Movie Data: " << (int) parsed_data->pixels[0] << std::endl;
+				if (!(strcmp(parsed_data->pixels, "Done"))){
+					memset(sending->pixels, 0, MAXDATA*sizeof(char));
+					sending->seq = 0;
+					sending->ack = parsed_data->seq + parsed_data->length;
+					sending->syn = 0;
+					sending->fin = 0;
+					sending->length = 1;
+					sprintf(sending->pixels, "0");
+					quic.send(sending);
+					
+					destroyAllWindows();
+					
+					break;
+				}
 				
-				image = cv::RGBImage(parsed_data->pixels, CV_8U);
-				cv::imshow("Dyllon", image);
-				cv::waitkey(10);
+				//std::cout << "Movie Data: " << (int) parsed_data->pixels[0] << std::endl;
+				
+				Mat image(128, 128, CV_8UC3, parsed_data->pixels);
+				resize(image, image, Size(640,480));
+				imshow("Video!", image);
+				waitKey(20);
 				
 				memset(sending->pixels, 0, MAXDATA*sizeof(char));
 				sending->seq = 0;
@@ -153,6 +168,12 @@ int main() {
 				quic.send(sending);
 			}
 		}
+		
+		
+		
+		
+		
+		
 		if (!(strcmp(sending->pixels, "Finish"))){
 			break;
 		}
@@ -166,7 +187,7 @@ int main() {
 		//1
 		uint32_t random = (uint32_t) std::rand();
 		sending->seq = random;
-		sending->ack = random;
+		sending->ack = 0;
 		sending->syn = 0;
 		sending->fin = 1;
 		sending->length = 0;
@@ -178,14 +199,25 @@ int main() {
 			std::cout << "Data corrupt, send again" << std::endl;
 			//continue;
 		}
-		else if (!(parsed_data->seq == sending->seq && parsed_data->ack == sending->ack + 1)){
+		else if (parsed_data->ack != sending->seq + 1){
 			std::cout << "Rands not syncing" << std::endl;
 			continue;
 		}
 		
 		//3
+		valid = quic.receive_data(parsed_data);
+		if (valid == 0){
+			std::cout << "Data corrupt, send again" << std::endl;
+			//continue;
+		}
+		else if (parsed_data->fin != 1){
+			std::cout << "Fot fin from server" << std::endl;
+			continue;
+		}
+		
+		//4
 		sending->seq = 0;
-		sending->ack = parsed_data->ack;
+		sending->ack = parsed_data->seq + 1;
 		sending->syn = 0;
 		sending->fin = 0;
 		sending->length = 0;
