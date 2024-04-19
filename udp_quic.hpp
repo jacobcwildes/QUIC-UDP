@@ -33,25 +33,32 @@ class SimpleQuic {
 			data = (char*) calloc((max_data+max_header),sizeof(char));
 		}
 		
-		void data_create(struct dataframe *input){ //tested and is working
+		int data_create(struct dataframe *input){ //tested and is working
 
-			char beforeChecksum[max_header];
-			
-			sprintf(beforeChecksum, "%d,%d,%d,%d,%d", input->seq, input->ack, input->syn, input->fin, input->length);
 			
 			//calc checksum
 			uint16_t data_sum = 0;
 			for (int i = 0; i < input->length; i++) data_sum += input->pixels[i];
 			uint16_t checksum = input->seq + input->ack + input->syn + input->fin + input->length + data_sum;
 			
-			sprintf(data, "%s,%d,%s", beforeChecksum, checksum, input->pixels);
+			char beforeChecksum[max_header];
+			
+			sprintf(beforeChecksum, "%d,%d,%d,%d,%d,%d,", input->seq, input->ack, input->syn, input->fin, input->length,checksum);
+			int len = strlen(beforeChecksum);
+			
+			std::cout << "Send: " << beforeChecksum;
+			if (input->length <=100) std::cout << input->pixels;
+			std::cout << std::endl;
+			
+			sprintf(data, "%s%s", beforeChecksum, input->pixels);
+			return len;
 			
 		}
 		
 		void send(struct dataframe *input){
 			std::cout << "--------------------" << std::endl;
-			data_create(input);
-			std::cout << "Sending: " << data << std::endl;
+			int head_length = data_create(input);
+			//std::cout << "head length: " << head_length << std::endl;
 			sendto(socketfd, data, strlen(data), 
 						MSG_CONFIRM, address,  
 						addr_size); 
@@ -62,54 +69,68 @@ class SimpleQuic {
 			size_t pos = 0;
 			std::string buffer = data;
 			std::string delim = ",";
-			
+			//std::cout << buffer << std::endl;
 			pos = buffer.find(',');
 			parsed->seq = (uint32_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
+			std::cout << "Recv: " << parsed->seq << ",";
 			
 			pos = buffer.find(',');
 			parsed->ack = (uint32_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
+			std::cout << parsed->ack << ",";
 			
 			pos = buffer.find(',');
 			parsed->syn = (uint16_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
+			std::cout << parsed->syn << ",";
 			
 			pos = buffer.find(',');
 			parsed->fin = (uint16_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
+			std::cout << parsed->fin << ",";
 			
 			pos = buffer.find(',');
 			parsed->length = (uint16_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
+			std::cout << parsed->length << ",";
 			
 			pos = buffer.find(',');
 			parsed->checksum = (uint16_t) stoi(buffer.substr(0,pos));
 			buffer.erase(0, pos + delim.length());
+			std::cout << parsed->checksum;
 			
 			
-			pos = buffer.find(',');
-			strcpy(parsed->pixels,buffer.substr(0,pos).c_str());
-			buffer.erase(0, pos + delim.length());
+			//pos = buffer.find(',');
+			strcpy(parsed->pixels,buffer.substr(0,parsed->length).c_str());
+			if (parsed->length <= 100) std::cout << "," << parsed->pixels;
+			std::cout << std::endl;
+			
+			std::cout << "Parsed Buffer pixel Count: " << strlen(parsed->pixels) << std::endl;
+			
+			
+			
 		}
 
 		int checksum_valid(struct dataframe *input){ //this is tested and working
 			uint16_t data_sum = 0; 
 			for (int i = 0; i < input->length; i++) data_sum += input->pixels[i];
 			uint16_t checksum = input->seq + input->ack + input->syn + input->fin + input->length + data_sum;
-
+			std::cout << "Calc Checksum: " << checksum << std::endl;
+			std::cout << "Pixel Count: " << strlen(input->pixels) << std::endl;
 			if (checksum == input->checksum) return 1;
 			return 0;
 		}
 
 		int receive_data(struct dataframe *parsed_data){
 			int valid;
+			memset(data, 0, (max_data+max_header)*sizeof(char));
 			n = recvfrom(socketfd, data, max_header+max_data,  
 					MSG_WAITALL, address, 
 					&len);	
-			data[n] = '\0';
+			//data[n] = '\0';
 
-			std::cout << "Received: " << data << std::endl;
+			std::cout << "Datalength: " << strlen(data) << std::endl;
 			data_parse(parsed_data);
 			valid = checksum_valid(parsed_data);
 			if (valid) std::cout << "Valid Checksum :)" << std::endl;
@@ -119,5 +140,4 @@ class SimpleQuic {
 		
 		
 };
-
 
